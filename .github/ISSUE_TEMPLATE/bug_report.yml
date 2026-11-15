@@ -1,0 +1,42 @@
+name: Bug report
+description: Report something broken or unexpected
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect to happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Select "Flag Quiz"
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android
+        - iOS
+        - Web
+        - All platforms
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version / Expo SDK
+      placeholder: "v1.0.0 (Expo SDK 57)"
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or screen recordings
+      description: If applicable — these make reports much easier to act on.

@@ -4,6 +4,7 @@
   "license": "MIT",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "packageManager": "pnpm@12.18.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/riad-boussaid/capital-quiz.git"
@@ -38,10 +39,13 @@
   },
   "devDependencies": {
     "@babel/plugin-transform-react-jsx": "^7.29.7",
+    "@types/jest": "29.5.14",
     "@types/react": "~19.2.2",
     "babel-preset-expo": "^57.0.6",
     "eslint": "9.39.5",
     "eslint-config-expo": "~57.0.1",
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.6",
     "tailwindcss": "3.4.17",
     "typescript": "~6.0.3"
   },
@@ -51,6 +55,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
   }
 }

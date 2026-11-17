@@ -3,7 +3,7 @@
   "description": "A flag and capital city quiz game built with Expo and React Native",
   "license": "MIT",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "packageManager": "pnpm@12.18.0",
   "repository": {
     "type": "git",

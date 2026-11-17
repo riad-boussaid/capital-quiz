@@ -11,16 +11,21 @@ A fast-paced geography quiz for Android, iOS, and web — guess the capital from
 ## Features
 
 - **Two game modes** — Capital Quiz (country → capital) and Flag Quiz (flag → country)
+- **Real flag images** — flags load from [flagcdn.com](https://flagcdn.com) and fall back to emoji when offline
 - **Three difficulties** — Easy, Medium, and Hard change the number of answer choices per question (4 / 6 / 8)
-- **Optional timer** — 10, 20, or 30 seconds per question, or play untimed
-- **Scoring, streaks & accuracy** — 10 points per correct answer with best-streak tracking and end-of-run stats
+- **Optional timer** — 10, 20, or 30 seconds per question, or play untimed, with a color-shifting countdown bar
+- **Scoring, streaks & accuracy** — 10 points per correct answer with best-streak tracking, letter-badged answers, ✓/✗ reveal marks, and end-of-run stats
 - **Personal bests** — best scores are saved on-device for each mode + difficulty + timer combination
-- **71 countries** — emoji flags, spanning six continents
+- **Polished results** — animated accuracy ring, performance tiers, and haptic feedback on correct/wrong answers (mobile only)
+- **71 countries** — spanning six continents
 
 ## Tech stack
 
 - [Expo](https://expo.dev) SDK 57 / React Native with [expo-router](https://docs.expo.dev/router/introduction/) file-based routing
-- [NativeWind](https://www.nativewind.dev/) — Tailwind CSS styling for React Native
+- [NativeWind](https://www.nativewind.dev/) — Tailwind CSS styling for React Native, with light/dark design tokens
+- [expo-image](https://docs.expo.dev/versions/latest/sdk/image/) for cached flag images
+- [lucide-react-native](https://lucide.dev) + [react-native-svg](https://github.com/software-mansion/react-native-svg) for icons and the accuracy ring
+- [expo-haptics](https://docs.expo.dev/versions/latest/sdk/haptics/) for answer feedback
 - TypeScript with the React Compiler enabled
 
 ## Getting started
@@ -47,15 +52,19 @@ pnpm web
 | `pnpm ios` | Run on an iOS simulator (dev build) |
 | `pnpm web` | Start in web mode |
 | `pnpm lint` | Run ESLint |
+| `pnpm typecheck` | Run TypeScript checks |
+| `pnpm test` | Run Jest unit tests |
 
 ## Project structure
 
 ```
 src/
 ├── app/          # Screens, routed by expo-router (index, quiz, results)
-├── components/   # Reusable UI (answer option, flag, progress/timer bars)
+├── components/   # Reusable UI (answer option, flag, segmented control,
+│                 #   progress dots, timer bar, accuracy ring)
 ├── data/         # Country dataset (name, capital, flag, continent)
-├── lib/          # Quiz logic: question generation, shuffling, scoring
+├── lib/          # Quiz logic (question generation, scoring) + shared
+│                 #   theme tokens for icons/SVG
 └── store/        # Best-scores context persisted with AsyncStorage
 ```
 

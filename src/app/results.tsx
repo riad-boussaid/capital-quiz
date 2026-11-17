@@ -1,12 +1,50 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Check, Flame, House, RotateCcw, Target, Trophy, type LucideIcon } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-function Stat({ label, value }: { label: string; value: string }) {
+import { AccuracyRing } from '@/components/accuracy-ring';
+import { useUiColors } from '@/lib/theme';
+
+function tierFor(accuracy: number): string {
+  if (accuracy >= 90) return 'Outstanding — you know your world!';
+  if (accuracy >= 70) return 'Great job — almost perfect!';
+  if (accuracy >= 50) return 'Good effort — keep practicing!';
+  return 'Keep practicing — you’ll get there!';
+}
+
+function StatCard({
+  icon: Icon,
+  tint,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  tint: 'correct' | 'primary' | 'amber';
+  label: string;
+  value: string;
+}) {
+  const colors = useUiColors();
+  const tintBg =
+    tint === 'correct' ? 'bg-correctSoft' : tint === 'amber' ? 'bg-amberSoft' : 'bg-primarySoft';
+  const tintFg =
+    tint === 'correct' ? colors.correct : tint === 'amber' ? colors.amber : colors.primary;
+
   return (
-    <View className="flex-1 items-center gap-1 rounded-2xl p-3">
-      <Text className="text-2xl font-semibold leading-7 text-content">{value}</Text>
-      <Text className="text-sm text-muted">{label}</Text>
+    <View className="flex-1 items-center gap-1.5 rounded-2xl border border-edge bg-card p-3">
+      <View className={`h-7 w-7 items-center justify-center rounded-[9px] ${tintBg}`}>
+        <Icon size={15} color={tintFg} strokeWidth={2.5} />
+      </View>
+      <Text className="text-lg font-bold text-content tabular-nums">{value}</Text>
+      <Text className="text-[11px] text-muted">{label}</Text>
+    </View>
+  );
+}
+
+function ConfigPill({ label }: { label: string }) {
+  return (
+    <View className="rounded-full bg-element px-2.5 py-1">
+      <Text className="text-[11px] font-semibold text-muted">{label}</Text>
     </View>
   );
 }
@@ -24,6 +62,7 @@ export default function ResultsScreen() {
     time?: string;
   }>();
   const router = useRouter();
+  const colors = useUiColors();
 
   const score = Number(params.score ?? 0);
   const correct = Number(params.correct ?? 0);
@@ -51,38 +90,50 @@ export default function ResultsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <SafeAreaView className="flex-1 w-full max-w-[800px] self-center px-6 pt-16 pb-4">
-        <View className="items-center gap-1">
+      <SafeAreaView className="flex-1 w-full max-w-[800px] self-center">
+        <View className="flex-1 px-6 pt-10 pb-5">
+        <View className="items-center">
           <Text className="text-sm text-muted">Quiz complete</Text>
-          <Text className="text-[72px] font-semibold leading-[80px] text-content">{score}</Text>
-          <Text className="text-sm text-muted">points</Text>
+          <View className="mt-3">
+            <AccuracyRing accuracy={accuracy} score={score} caption="points" />
+          </View>
+          <Text className="mt-3 text-center text-sm font-bold text-content">
+            {tierFor(accuracy)}
+          </Text>
           {isNewBest && (
-            <Text className="text-xs font-bold text-correct">🏆 New best score!</Text>
+            <View className="mt-2 flex-row items-center gap-1.5 rounded-full bg-correctSoft px-3 py-1.5">
+              <Trophy size={13} color={colors.correct} />
+              <Text className="text-xs font-bold text-correct">New best score!</Text>
+            </View>
           )}
         </View>
 
-        <View className="mt-5 flex-row gap-3">
-          <Stat label="Correct" value={`${correct}/${total}`} />
-          <Stat label="Accuracy" value={`${accuracy}%`} />
-          <Stat label="Best streak" value={String(bestStreak)} />
+        <View className="mt-6 flex-row gap-2.5">
+          <StatCard icon={Check} tint="correct" label="Correct" value={`${correct}/${total}`} />
+          <StatCard icon={Target} tint="primary" label="Accuracy" value={`${accuracy}%`} />
+          <StatCard icon={Flame} tint="amber" label="Best streak" value={String(bestStreak)} />
         </View>
 
-        <Text className="mt-4 text-center text-sm capitalize text-muted">
-          {mode === 'capital' ? 'Capital Quiz' : 'Flag Quiz'} · {difficulty} ·{' '}
-          {timed ? `${time}s timer` : 'untimed'}
-        </Text>
+        <View className="mt-4 flex-row justify-center gap-1.5">
+          <ConfigPill label={mode === 'capital' ? 'Capital Quiz' : 'Flag Quiz'} />
+          <ConfigPill label={difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} />
+          <ConfigPill label={timed ? `${time}s timer` : 'Untimed'} />
+        </View>
 
-        <View className="mt-auto gap-3 pt-4">
+        <View className="mt-auto gap-3 pt-5">
           <Pressable
             onPress={playAgain}
-            className="items-center rounded-2xl bg-primary py-4 active:opacity-80">
+            className="h-[54px] flex-row items-center justify-center gap-2 rounded-2xl bg-primary active:opacity-80">
+            <RotateCcw size={16} color="#ffffff" strokeWidth={2.5} />
             <Text className="font-bold text-primaryText">Play Again</Text>
           </Pressable>
           <Pressable
             onPress={() => router.replace('/')}
-            className="items-center rounded-2xl bg-element py-4 active:opacity-80">
+            className="h-[54px] flex-row items-center justify-center gap-2 rounded-2xl bg-element active:opacity-80">
+            <House size={16} color={colors.content} strokeWidth={2.5} />
             <Text className="font-semibold text-content">Back to Home</Text>
           </Pressable>
+        </View>
         </View>
       </SafeAreaView>
     </View>

@@ -1,16 +1,28 @@
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Check, ChevronRight, Flame, Star, X } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnswerOption, type AnswerState } from '@/components/answer-option';
 import { Flag } from '@/components/flag';
-import { ProgressBar } from '@/components/progress-bar';
+import { ProgressDots } from '@/components/progress-dots';
 import { TimerBar } from '@/components/timer-bar';
 import { generateQuestions, POINTS_PER_CORRECT, type Difficulty, type QuizMode } from '@/lib/quiz';
+import { useUiColors } from '@/lib/theme';
 import { scoreKey, useScores } from '@/store/ScoresContext';
 
 const QUESTION_COUNT = 10;
+
+function feedbackHaptic(ok: boolean) {
+  if (Platform.OS === 'web') return;
+  Haptics.notificationAsync(
+    ok ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error,
+  ).catch(() => {
+    // haptics are best-effort
+  });
+}
 
 function optionStateFor(
   option: string,
@@ -34,6 +46,7 @@ export default function QuizScreen() {
   }>();
   const router = useRouter();
   const { recordResult } = useScores();
+  const colors = useUiColors();
 
   const settings = useMemo(
     () => ({
@@ -67,6 +80,7 @@ export default function QuizScreen() {
       const isCorrect = option !== null && option === question.correctAnswer;
       setSelected(option);
       setRevealed(true);
+      feedbackHaptic(isCorrect);
       if (isCorrect) {
         setCorrectCount((c) => c + 1);
         setScore((s) => s + POINTS_PER_CORRECT);
@@ -83,24 +97,22 @@ export default function QuizScreen() {
   );
 
   useEffect(() => {
-    if (!settings.timed) return;
+    // The timer runs only while a question is unanswered; it freezes during
+    // the reveal so the bar doesn't keep draining behind the feedback.
+    if (!settings.timed || revealed) return;
     const id = setInterval(() => {
       setTimeLeft((t) => (t <= 1 ? 0 : t - 1));
     }, 1000);
     return () => clearInterval(id);
-  }, [settings.timed, index]);
+  }, [settings.timed, revealed, index]);
 
-  const timeoutFired = useRef(false);
   useEffect(() => {
-    if (!settings.timed || revealed) {
-      timeoutFired.current = false;
-      return;
-    }
-    if (timeLeft === 0 && !timeoutFired.current) {
-      timeoutFired.current = true;
-      selectAnswer(null);
-    }
-  }, [settings.timed, revealed, timeLeft, selectAnswer]);
+    // Timeout is scheduled per question; the interval above only drives the
+    // visible countdown so the two stay in sync but lint-safe.
+    if (!settings.timed || revealed) return;
+    const id = setTimeout(() => selectAnswer(null), settings.timePerQuestion * 1000);
+    return () => clearTimeout(id);
+  }, [settings.timed, revealed, index, settings.timePerQuestion, selectAnswer]);
 
   const finish = () => {
     const isNewBest = recordResult(key, score);
@@ -137,46 +149,61 @@ export default function QuizScreen() {
   let feedback: { text: string; ok: boolean } | null = null;
   if (revealed) {
     if (selected === question.correctAnswer) {
-      feedback = { text: `Correct! +${POINTS_PER_CORRECT}`, ok: true };
+      feedback = { text: `Correct! +${POINTS_PER_CORRECT} points`, ok: true };
     } else if (selected === null) {
-      feedback = { text: `Time's up! Answer: ${question.correctAnswer}`, ok: false };
+      feedback = { text: `Time's up — it's ${question.correctAnswer}`, ok: false };
     } else {
-      feedback = { text: `Wrong. Answer: ${question.correctAnswer}`, ok: false };
+      feedback = { text: `Wrong — it's ${question.correctAnswer}`, ok: false };
     }
   }
 
   return (
     <View className="flex-1 bg-background">
-      <SafeAreaView className="flex-1 w-full max-w-[800px] self-center px-6 pt-8 pb-4">
-        <View className="flex-row items-center justify-between gap-3">
-          <ProgressBar current={index + 1} total={questions.length} />
-          <View className="flex-row gap-3">
-            <Text className="text-xs font-bold text-content">⭐ {score}</Text>
+      <SafeAreaView className="flex-1 w-full max-w-[800px] self-center">
+        <View className="flex-1 px-5 pt-4 pb-5">
+        <View className="flex-row items-center gap-3">
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityLabel="Quit quiz"
+            className="h-9 w-9 items-center justify-center rounded-full bg-element active:opacity-70">
+            <X size={18} color={colors.content} strokeWidth={2.5} />
+          </Pressable>
+          <ProgressDots current={index} total={questions.length} />
+          <View className="flex-row gap-1.5">
+            <View className="flex-row items-center gap-1 rounded-full bg-element px-2.5 py-1">
+              <Star size={13} color={colors.amber} fill={colors.amber} />
+              <Text className="text-xs font-bold text-content tabular-nums">{score}</Text>
+            </View>
             {streak >= 2 && (
-              <Text className="text-xs font-bold text-primary">🔥 {streak}</Text>
+              <View className="flex-row items-center gap-1 rounded-full bg-element px-2.5 py-1">
+                <Flame size={13} color={colors.amber} />
+                <Text className="text-xs font-bold text-content tabular-nums">{streak}</Text>
+              </View>
             )}
           </View>
         </View>
 
-        {settings.timed && !revealed && (
-          <View className="mt-3 flex-row items-center gap-3">
+        {settings.timed && (
+          <View className="mt-3 flex-row items-center gap-2.5">
             <TimerBar total={settings.timePerQuestion} remaining={timeLeft} />
-            <Text className="text-xs font-bold text-content">{timeLeft}s</Text>
+            <Text className="w-7 text-right text-xs font-bold text-content tabular-nums">
+              {timeLeft}s
+            </Text>
           </View>
         )}
 
-        <View className="my-8 items-center gap-2">
-          <Flag emoji={question.country.flag} size={88} />
+        <View className="my-7 items-center gap-1.5">
+          <Flag emoji={question.country.flag} size={104} />
           {question.mode === 'capital' ? (
             <>
-              <Text className="text-center text-[28px] font-semibold leading-9 text-content">
+              <Text className="mt-3 text-center text-[26px] font-bold leading-8 text-content">
                 {question.country.name}
               </Text>
               <Text className="text-sm text-muted">What is its capital?</Text>
             </>
           ) : (
             <>
-              <Text className="text-center text-[28px] font-semibold leading-9 text-content">
+              <Text className="mt-3 text-center text-[26px] font-bold leading-8 text-content">
                 Which country?
               </Text>
               <Text className="text-sm text-muted">Identify the flag above</Text>
@@ -184,11 +211,12 @@ export default function QuizScreen() {
           )}
         </View>
 
-        <View className="gap-3">
-          {question.options.map((option) => (
+        <View className="gap-2.5">
+          {question.options.map((option, i) => (
             <AnswerOption
               key={option}
               label={option}
+              index={i}
               state={optionStateFor(option, question.correctAnswer, selected, revealed)}
               disabled={revealed}
               onPress={() => selectAnswer(option)}
@@ -196,30 +224,45 @@ export default function QuizScreen() {
           ))}
         </View>
 
-        <View className="mt-auto gap-3 pt-3">
-          {revealed ? (
+        <View className="mt-auto min-h-[104px] justify-end gap-3 pt-4">
+          {revealed && feedback ? (
             <>
-              <Text
-                className={`text-center text-xs font-bold ${
-                  feedback?.ok ? 'text-correct' : 'text-wrong'
+              <View
+                className={`flex-row items-center gap-2.5 rounded-xl px-3.5 py-2.5 ${
+                  feedback.ok ? 'bg-correctSoft' : 'bg-wrongSoft'
                 }`}>
-                {feedback?.text}
-              </Text>
+                <View
+                  className={`h-[22px] w-[22px] items-center justify-center rounded-full ${
+                    feedback.ok ? 'bg-correct' : 'bg-wrong'
+                  }`}>
+                  {feedback.ok ? (
+                    <Check size={13} color="#ffffff" strokeWidth={3} />
+                  ) : (
+                    <X size={13} color="#ffffff" strokeWidth={3} />
+                  )}
+                </View>
+                <Text
+                  className={`flex-1 text-[13px] font-bold ${
+                    feedback.ok ? 'text-correct' : 'text-wrong'
+                  }`}>
+                  {feedback.text}
+                </Text>
+              </View>
               <Pressable
                 onPress={goNext}
-                className="items-center rounded-2xl bg-primary py-4 active:opacity-80">
+                className="h-[54px] flex-row items-center justify-center gap-2 rounded-2xl bg-primary active:opacity-80">
                 <Text className="font-bold text-primaryText">
                   {isLast ? 'See Results' : 'Next Question'}
                 </Text>
+                <ChevronRight size={17} color="#ffffff" strokeWidth={2.5} />
               </Pressable>
             </>
           ) : (
-            <Pressable
-              onPress={() => router.back()}
-              className="self-center active:opacity-60">
-              <Text className="text-sm text-muted">Quit quiz</Text>
-            </Pressable>
+            <Text className="text-center text-xs text-muted">
+              Select an answer — {POINTS_PER_CORRECT} points for every correct one
+            </Text>
           )}
+        </View>
         </View>
       </SafeAreaView>
     </View>

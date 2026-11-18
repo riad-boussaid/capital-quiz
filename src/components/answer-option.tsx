@@ -18,9 +18,8 @@ export function AnswerOption({
   state: AnswerState;
   disabled?: boolean;
   onPress?: () => void;
-  // Compact renders the two-column grid variant: tighter padding, smaller
-  // type, and the check/cross badge overlays the corner instead of sitting
-  // inline (there is no horizontal room for it in a grid cell).
+  // Compact renders the two-column grid variant: tighter padding and smaller
+  // type. The state icon replaces the letter in the chip once revealed.
   compact?: boolean;
 }) {
   const isCorrect = state === 'correct';
@@ -31,6 +30,13 @@ export function AnswerOption({
     <Pressable
       disabled={disabled || isDimmed}
       onPress={onPress}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={`${LETTERS[index] ?? ''}, ${label}${
+        isCorrect ? ', correct answer' : isWrong ? ', wrong answer' : ''
+      }`}
+      accessibilityHint={disabled || isDimmed ? undefined : 'Select this answer'}
+      accessibilityState={{ disabled: !!(disabled || isDimmed) }}
       className={`flex-row items-center rounded-2xl border-[1.5px] ${
         compact ? 'flex-1 gap-2 px-2.5 py-2.5' : 'gap-3 px-4 py-3'
       } ${
@@ -44,12 +50,20 @@ export function AnswerOption({
         className={`items-center justify-center ${
           compact ? 'h-6 w-6 rounded-[8px]' : 'h-7 w-7 rounded-[9px]'
         } ${isCorrect ? 'bg-correct' : isWrong ? 'bg-wrong' : 'bg-element'}`}>
-        <Text
-          className={`font-bold ${compact ? 'text-[10px]' : 'text-xs'} ${
-            isCorrect ? 'text-correctText' : isWrong ? 'text-wrongText' : 'text-muted'
-          }`}>
-          {LETTERS[index] ?? ''}
-        </Text>
+        {compact && (isCorrect || isWrong) ? (
+          isCorrect ? (
+            <Check size={14} color="#ffffff" strokeWidth={3} />
+          ) : (
+            <X size={14} color="#ffffff" strokeWidth={3} />
+          )
+        ) : (
+          <Text
+            className={`font-bold ${compact ? 'text-[10px]' : 'text-xs'} ${
+              isCorrect ? 'text-correctText' : isWrong ? 'text-wrongText' : 'text-muted'
+            }`}>
+            {LETTERS[index] ?? ''}
+          </Text>
+        )}
       </View>
       <Text
         numberOfLines={compact ? 2 : undefined}
@@ -66,18 +80,6 @@ export function AnswerOption({
       {!compact && isWrong && (
         <View className="h-6 w-6 items-center justify-center rounded-full bg-wrong">
           <X size={14} color="#ffffff" strokeWidth={3} />
-        </View>
-      )}
-      {compact && (isCorrect || isWrong) && (
-        <View
-          className={`absolute -right-1.5 -top-1.5 h-5 w-5 items-center justify-center rounded-full ${
-            isCorrect ? 'bg-correct' : 'bg-wrong'
-          }`}>
-          {isCorrect ? (
-            <Check size={11} color="#ffffff" strokeWidth={3.5} />
-          ) : (
-            <X size={11} color="#ffffff" strokeWidth={3.5} />
-          )}
         </View>
       )}
     </Pressable>

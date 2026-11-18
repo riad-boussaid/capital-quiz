@@ -1,8 +1,7 @@
-import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Check, ChevronRight, Flame, Heart, Star, Target, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnswerOption, type AnswerState } from '@/components/answer-option';
@@ -27,6 +26,7 @@ import {
   type QuizMode,
 } from '@/lib/quiz';
 import { todayKey } from '@/lib/daily';
+import { playFeedbackHaptic } from '@/lib/haptics';
 import { playSfx } from '@/lib/sound';
 import { useUiColors } from '@/lib/theme';
 import { useDaily } from '@/store/DailyContext';
@@ -34,15 +34,6 @@ import { useMissed } from '@/store/MissedContext';
 import { scoreKey, useScores } from '@/store/ScoresContext';
 
 const QUESTION_COUNT = 10;
-
-function feedbackHaptic(ok: boolean) {
-  if (Platform.OS === 'web') return;
-  Haptics.notificationAsync(
-    ok ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error,
-  ).catch(() => {
-    // haptics are best-effort
-  });
-}
 
 // Tweens a number up to its new value so the score chip counts instead of jumps.
 function useCountUp(target: number, durationMs = 400): number {
@@ -161,10 +152,13 @@ export default function QuizScreen() {
   const questionStartRef = useRef(0);
   // One "1"/"0" per answered question, in order — feeds the results share card.
   const outcomesRef = useRef<string[]>([]);
+  // Guards against advancing twice when a tap races the auto-advance timer.
+  const advancingRef = useRef(false);
 
   useEffect(() => {
     // Each question restarts the clock that drives the speed bonus.
     questionStartRef.current = Date.now();
+    advancingRef.current = false;
   }, [index]);
 
   const timedLabel = settings.timed ? String(settings.timePerQuestion) : 'off';
@@ -183,7 +177,7 @@ export default function QuizScreen() {
       const isCorrect = option !== null && option === question.correctAnswer;
       setSelected(option);
       setRevealed(true);
-      feedbackHaptic(isCorrect);
+      playFeedbackHaptic(isCorrect);
       outcomesRef.current.push(isCorrect ? '1' : '0');
       if (isCorrect) {
         const nextStreak = streak + 1;
@@ -311,6 +305,8 @@ export default function QuizScreen() {
   ]);
 
   const goNext = useCallback(() => {
+    if (advancingRef.current) return;
+    advancingRef.current = true;
     if (isEndless) {
       if (runOver) {
         finish();
@@ -341,18 +337,6 @@ export default function QuizScreen() {
       finish();
     }
   }, [isEndless, runOver, finish, index, questions.length, settings.timePerQuestion]);
-
-  useEffect(() => {
-    // Flow: correct answers auto-advance so a run never stalls on taps; wrong
-    // and timed-out answers stay up so the correction can be read. Tapping
-    // Next still works during the window (state change clears this timer).
-    if (!revealed || selected === null || selected !== quizQuestions[index]?.correctAnswer) return;
-    const id = setTimeout(
-      goNext,
-      isEndless || index < quizQuestions.length - 1 ? 900 : 1400,
-    );
-    return () => clearTimeout(id);
-  }, [revealed, selected, index, quizQuestions, isEndless, goNext]);
 
   const question = quizQuestions[index];
   const isLast = isEndless ? runOver : index === quizQuestions.length - 1;
@@ -414,7 +398,15 @@ export default function QuizScreen() {
 
         {/* Hard mode renders 8 options; on short screens the list needs to
             scroll while the feedback/next area stays pinned below. */}
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}>
+          <Pressable
+            onPress={revealed ? goNext : undefined}
+            accessible={false}
+            importantForAccessibility="no"
+            className="flex-1">
         <View className="my-7 items-center gap-1.5">
           {(isDaily || question.country.name in missed) && (
             <View className="mb-1.5 flex-row items-center gap-1.5">
@@ -453,7 +445,9 @@ export default function QuizScreen() {
           )}
         </View>
 
-          <View className="flex-row flex-wrap justify-between gap-y-2.5">
+          <View
+            className="flex-row flex-wrap justify-between gap-y-2.5"
+            pointerEvents={revealed ? 'none' : 'auto'}>
             {question.options.map((option, i) => (
               <View key={option} className="w-[48.5%]">
                 <AnswerOption
@@ -467,12 +461,16 @@ export default function QuizScreen() {
               </View>
             ))}
           </View>
+          </Pressable>
         </ScrollView>
 
           <View className="min-h-[104px] justify-end gap-3 pt-3">
           {revealed && feedback ? (
             <>
-              <View
+              <Pressable
+                onPress={goNext}
+                accessible={false}
+                importantForAccessibility="no"
                 className={`flex-row items-center gap-2.5 rounded-xl px-3.5 py-2.5 ${
                   feedback.ok ? 'bg-correctSoft' : 'bg-wrongSoft'
                 }`}>
@@ -488,6 +486,7 @@ export default function QuizScreen() {
                 </View>
                 <View className="flex-1 gap-1">
                   <Text
+                    accessibilityLiveRegion="polite"
                     className={`text-[13px] font-bold ${
                       feedback.ok ? 'text-correct' : 'text-wrong'
                     }`}>
@@ -504,7 +503,7 @@ export default function QuizScreen() {
                     </Text>
                   )}
                 </View>
-              </View>
+              </Pressable>
               <Pressable
                 onPress={goNext}
                 className="h-[54px] flex-row items-center justify-center gap-2 rounded-2xl bg-primary active:opacity-80">

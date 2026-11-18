@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   CalendarDays,
   Check,
@@ -10,11 +10,12 @@ import {
   Infinity as InfinityIcon,
   Landmark,
   Play,
+  Settings2,
   Trophy,
   Volume2,
   VolumeX,
 } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -131,6 +132,13 @@ export default function HomeScreen() {
     });
   }, [mode, difficulty, timed, settingsLoaded]);
 
+  // Sound can also be changed in Settings, so refresh the toggle on return.
+  useFocusEffect(
+    useCallback(() => {
+      setMutedState(isMuted());
+    }, []),
+  );
+
   const onToggleMute = () => {
     const next = !muted;
     setMutedState(next);
@@ -195,6 +203,12 @@ export default function HomeScreen() {
           contentContainerStyle={{ paddingBottom: 4 }}
           showsVerticalScrollIndicator={false}>
         <View className="items-center gap-3">
+          <Pressable
+            onPress={() => router.push('/settings')}
+            accessibilityLabel="Settings"
+            className="absolute left-0 top-0 h-9 w-9 items-center justify-center rounded-full bg-element active:opacity-70">
+            <Settings2 size={17} color={colors.content} strokeWidth={2.5} />
+          </Pressable>
           <Pressable
             onPress={onToggleMute}
             accessibilityLabel={muted ? 'Unmute sounds' : 'Mute sounds'}

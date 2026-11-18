@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import '@/global.css';
 
+import { initHaptics } from '@/lib/haptics';
 import { initAudio } from '@/lib/sound';
 import { DailyProvider } from '@/store/DailyContext';
 import { MissedProvider } from '@/store/MissedContext';
@@ -21,6 +22,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     void initAudio();
+    void initHaptics();
   }, []);
 
   return (
@@ -32,6 +34,7 @@ export default function RootLayout() {
               <Stack.Screen name="index" />
               <Stack.Screen name="quiz" />
               <Stack.Screen name="results" />
+              <Stack.Screen name="settings" />
             </Stack>
             <StatusBar style="auto" />
           </ThemeProvider>

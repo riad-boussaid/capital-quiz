@@ -19,6 +19,7 @@ interface ScoresContextValue {
   bestScores: Record<string, number>;
   bestFor: (key: string) => number;
   recordResult: (key: string, score: number) => boolean;
+  resetScores: () => void;
   ready: boolean;
 }
 
@@ -70,9 +71,16 @@ export function ScoresProvider({ children }: { children: ReactNode }) {
     [bestScores],
   );
 
+  const resetScores = useCallback(() => {
+    setBestScores({});
+    AsyncStorage.removeItem(STORAGE_KEY).catch(() => {
+      // ignore persistence errors
+    });
+  }, []);
+
   const value = useMemo<ScoresContextValue>(
-    () => ({ bestScores, bestFor, recordResult, ready }),
-    [bestScores, bestFor, recordResult, ready],
+    () => ({ bestScores, bestFor, recordResult, resetScores, ready }),
+    [bestScores, bestFor, recordResult, resetScores, ready],
   );
 
   return <ScoresContext.Provider value={value}>{children}</ScoresContext.Provider>;

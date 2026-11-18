@@ -3,8 +3,8 @@
 A fast-paced geography quiz for Android, iOS, and web — guess the capital from a country name, or the country from its flag. Built with Expo, React Native, and NativeWind.
 
 <p align="center">
-  <img src="docs/screenshots/home.png" width="256" alt="Home screen — choose mode, difficulty, and timer" />
-  <img src="docs/screenshots/quiz.png" width="256" alt="Quiz screen — pick the correct capital" />
+  <img src="docs/screenshots/home.png" width="256" alt="Home screen — quick play, daily challenge, endless mode" />
+  <img src="docs/screenshots/quiz.png" width="256" alt="Quiz screen — answer a capital and see instant feedback" />
   <img src="docs/screenshots/results.png" width="256" alt="Results screen — score, accuracy, and best streak" />
 </p>
 
@@ -17,6 +17,7 @@ A fast-paced geography quiz for Android, iOS, and web — guess the capital from
 - **Scoring, streaks & accuracy** — 10 points per correct answer with best-streak tracking, letter-badged answers, ✓/✗ reveal marks, and end-of-run stats
 - **Personal bests** — best scores are saved on-device for each mode + difficulty + timer combination
 - **Polished results** — animated accuracy ring, performance tiers, and haptic feedback on correct/wrong answers (mobile only)
+- **Settings** — sound and haptics toggles, plus a reset for best scores, weak spots, and the daily streak
 - **71 countries** — spanning six continents
 
 ## Tech stack

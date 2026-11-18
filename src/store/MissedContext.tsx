@@ -17,6 +17,7 @@ interface MissedContextValue {
   missed: Record<string, number>;
   recordMiss: (country: string) => void;
   recordHit: (country: string) => void;
+  resetMissed: () => void;
   ready: boolean;
 }
 
@@ -63,9 +64,16 @@ export function MissedProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const resetMissed = useCallback(() => {
+    setMissed({});
+    AsyncStorage.removeItem(STORAGE_KEY).catch(() => {
+      // ignore persistence errors
+    });
+  }, []);
+
   const value = useMemo<MissedContextValue>(
-    () => ({ missed, recordMiss, recordHit, ready }),
-    [missed, recordMiss, recordHit, ready],
+    () => ({ missed, recordMiss, recordHit, resetMissed, ready }),
+    [missed, recordMiss, recordHit, resetMissed, ready],
   );
 
   return <MissedContext.Provider value={value}>{children}</MissedContext.Provider>;

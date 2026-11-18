@@ -32,6 +32,7 @@ interface DailyContextValue {
   isCompletedToday: boolean;
   todayResult: DailyResult | null;
   recordDailyResult: (date: string, result: DailyResult) => RecordOutcome;
+  resetDaily: () => void;
   ready: boolean;
 }
 
@@ -80,15 +81,23 @@ export function DailyProvider({ children }: { children: ReactNode }) {
     [state],
   );
 
+  const resetDaily = useCallback(() => {
+    setState(EMPTY_STATE);
+    AsyncStorage.removeItem(STORAGE_KEY).catch(() => {
+      // ignore persistence errors
+    });
+  }, []);
+
   const value = useMemo<DailyContextValue>(
     () => ({
       dayStreak: state.dayStreak,
       isCompletedToday: state.lastCompletedDate === todayKey(),
       todayResult: state.history[todayKey()] ?? null,
       recordDailyResult,
+      resetDaily,
       ready,
     }),
-    [state, recordDailyResult, ready],
+    [state, recordDailyResult, resetDaily, ready],
   );
 
   return <DailyContext.Provider value={value}>{children}</DailyContext.Provider>;

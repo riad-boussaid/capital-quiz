@@ -5,17 +5,23 @@ import {
   Flag as FlagIcon,
   Flame,
   Globe,
+  Infinity as InfinityIcon,
   Landmark,
   Play,
   Trophy,
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Segmented } from '@/components/segmented';
 import { todayKey } from '@/lib/daily';
-import { dailyMode, DAILY_DIFFICULTY, DAILY_QUESTION_COUNT } from '@/lib/quiz';
+import {
+  dailyMode,
+  DAILY_DIFFICULTY,
+  DAILY_QUESTION_COUNT,
+  ENDLESS_SCORE_KEY,
+} from '@/lib/quiz';
 import type { Difficulty, QuizMode } from '@/lib/quiz';
 import { useUiColors } from '@/lib/theme';
 import { useDaily } from '@/store/DailyContext';
@@ -59,6 +65,7 @@ export default function HomeScreen() {
 
   const timedLabel = timed === 'off' ? 'off' : timed;
   const best = bestFor(scoreKey(mode, difficulty, timedLabel));
+  const endlessBest = bestFor(ENDLESS_SCORE_KEY);
 
   // The daily challenge is fixed per day: seeded questions, medium difficulty,
   // untimed, and the focus (capitals vs flags) alternates with the date.
@@ -77,6 +84,10 @@ export default function HomeScreen() {
         count: '10',
       },
     });
+  };
+
+  const startEndless = () => {
+    router.push({ pathname: '/quiz', params: { endless: '1' } });
   };
 
   const startDaily = () => {
@@ -100,6 +111,10 @@ export default function HomeScreen() {
         {/* Padding lives on an inner View: className padding on SafeAreaView
             doesn't apply on web through the cssInterop mapping. */}
         <View className="flex-1 px-6 pt-8">
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingBottom: 4 }}
+          showsVerticalScrollIndicator={false}>
         <View className="items-center gap-3">
           <View className="h-14 w-14 items-center justify-center rounded-[20px] bg-primary">
             <Globe size={28} color="#ffffff" strokeWidth={2} />
@@ -135,6 +150,24 @@ export default function HomeScreen() {
               {isCompletedToday && todayResult
                 ? `Done — ${todayResult.score} pts today · replay`
                 : `Today: ${dailyQuizMode === 'capital' ? 'capitals' : 'flags'} · ${DAILY_QUESTION_COUNT} questions`}
+            </Text>
+          </View>
+          <View className="h-8 w-8 items-center justify-center rounded-full bg-primary">
+            <Play size={14} color="#ffffff" fill="#ffffff" />
+          </View>
+        </Pressable>
+
+        <Pressable
+          onPress={startEndless}
+          accessibilityLabel="Play endless mode"
+          className="mt-3 flex-row items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:opacity-80">
+          <View className="h-[38px] w-[38px] items-center justify-center rounded-xl bg-primarySoft">
+            <InfinityIcon size={18} color={colors.primary} />
+          </View>
+          <View className="flex-1">
+            <Text className="text-[13px] font-bold text-content">Endless</Text>
+            <Text className="mt-0.5 text-xs text-muted" numberOfLines={1}>
+              Mixed · 3 lives{endlessBest > 0 ? ` · Best ${endlessBest}` : ''}
             </Text>
           </View>
           <View className="h-8 w-8 items-center justify-center rounded-full bg-primary">
@@ -209,7 +242,8 @@ export default function HomeScreen() {
         </Text>
         <Segmented options={TIMED_OPTIONS} value={timed} onChange={setTimed} />
 
-        <View className="mt-auto gap-2.5 pb-4 pt-6">
+        </ScrollView>
+        <View className="gap-2.5 pb-4 pt-3">
           <Pressable
             onPress={start}
             className="h-[54px] flex-row items-center justify-center gap-2 rounded-2xl bg-primary active:opacity-80">

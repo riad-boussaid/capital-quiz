@@ -1,8 +1,11 @@
 import { COUNTRIES } from '@/data/countries';
 import {
   DIFFICULTY_OPTIONS,
-  POINTS_BASE,
+  endlessDifficulty,
+  endlessMode,
+  generateQuestion,
   generateQuestions,
+  POINTS_BASE,
   scoreAnswer,
   shuffle,
   speedBonus,
@@ -154,5 +157,49 @@ describe('scoreAnswer', () => {
   it('reports the breakdown for feedback display', () => {
     const award = scoreAnswer(12, 3);
     expect(award).toEqual({ points: 15, speedBonus: 0, multiplier: 1.5 });
+  });
+});
+
+describe('endless mode', () => {
+  it('ramps difficulty as the run gets longer', () => {
+    expect(endlessDifficulty(0)).toBe('easy');
+    expect(endlessDifficulty(4)).toBe('easy');
+    expect(endlessDifficulty(5)).toBe('medium');
+    expect(endlessDifficulty(9)).toBe('medium');
+    expect(endlessDifficulty(10)).toBe('hard');
+    expect(endlessDifficulty(50)).toBe('hard');
+  });
+
+  it('alternates question focus', () => {
+    expect(endlessMode(0)).toBe('capital');
+    expect(endlessMode(1)).toBe('flag');
+    expect(endlessMode(2)).toBe('capital');
+  });
+
+  it('generates a valid single question', () => {
+    for (const mode of ['capital', 'flag'] as const) {
+      const question = generateQuestion(mode, 'easy');
+      expect(question.mode).toBe(mode);
+      expect(question.options).toHaveLength(DIFFICULTY_OPTIONS.easy);
+      expect(new Set(question.options).size).toBe(question.options.length);
+      expect(question.options).toContain(question.correctAnswer);
+      expect(question.correctAnswer).toBe(
+        mode === 'capital' ? question.country.capital : question.country.name,
+      );
+    }
+  });
+
+  it('avoids countries already played in the run', () => {
+    const exclude = new Set(COUNTRIES.slice(0, 20).map((c) => c.name));
+    for (let i = 0; i < 20; i++) {
+      const question = generateQuestion('capital', 'easy', exclude);
+      expect(exclude.has(question.country.name)).toBe(false);
+    }
+  });
+
+  it('falls back to the full pool when everything is excluded', () => {
+    const exclude = new Set(COUNTRIES.map((c) => c.name));
+    const question = generateQuestion('capital', 'easy', exclude);
+    expect(COUNTRIES.some((c) => c.name === question.country.name)).toBe(true);
   });
 });

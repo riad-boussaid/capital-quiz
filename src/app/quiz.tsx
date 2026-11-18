@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Check, ChevronRight, Flame, Star, X } from 'lucide-react-native';
+import { Check, ChevronRight, Flame, Heart, Star, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,12 +12,18 @@ import { TimerBar } from '@/components/timer-bar';
 import {
   dailyMode,
   DAILY_DIFFICULTY,
+  endlessDifficulty,
+  endlessMode,
+  ENDLESS_LIVES,
+  ENDLESS_SCORE_KEY,
+  generateQuestion,
   generateQuestions,
   mulberry32,
   scoreAnswer,
   seedFromDate,
   type Award,
   type Difficulty,
+  type Question,
   type QuizMode,
 } from '@/lib/quiz';
 import { todayKey } from '@/lib/daily';
@@ -57,6 +63,7 @@ export default function QuizScreen() {
     count?: string;
     daily?: string;
     date?: string;
+    endless?: string;
   }>();
   const router = useRouter();
   const { bestFor, recordResult } = useScores();
@@ -65,6 +72,7 @@ export default function QuizScreen() {
 
   const isDaily = params.daily === '1';
   const dailyDate = isDaily ? (params.date ?? todayKey()) : '';
+  const isEndless = params.endless === '1';
 
   const settings = useMemo(
     () => ({
@@ -97,6 +105,11 @@ export default function QuizScreen() {
   const [correctCount, setCorrectCount] = useState(0);
   const [timeLeft, setTimeLeft] = useState(settings.timePerQuestion);
   const [award, setAward] = useState<Award | null>(null);
+  // Endless grows its question list one at a time; regular modes have it all.
+  const [endlessQuestions, setEndlessQuestions] = useState<Question[]>(() => [
+    generateQuestion('capital', 'easy'),
+  ]);
+  const [lives, setLives] = useState(ENDLESS_LIVES);
   // Set on mount and on every question change by the effect below; 0 until then.
   const questionStartRef = useRef(0);
   // One "1"/"0" per answered question, in order — feeds the results share card.
@@ -110,10 +123,15 @@ export default function QuizScreen() {
   const timedLabel = settings.timed ? String(settings.timePerQuestion) : 'off';
   const key = scoreKey(settings.mode, settings.difficulty, timedLabel);
 
+  const quizQuestions = isEndless ? endlessQuestions : questions;
+  const runOver = isEndless && lives === 0;
+
   const selectAnswer = useCallback(
     (option: string | null) => {
       if (revealed) return;
-      const question = questions[index];
+      // Must read from the same list the UI renders — in endless mode that's
+      // the growing endlessQuestions, not the memoized regular questions.
+      const question = quizQuestions[index];
       const isCorrect = option !== null && option === question.correctAnswer;
       setSelected(option);
       setRevealed(true);
@@ -131,9 +149,10 @@ export default function QuizScreen() {
       } else {
         setStreak(0);
         setAward(null);
+        if (isEndless) setLives((l) => l - 1);
       }
     },
-    [revealed, index, questions, streak],
+    [revealed, index, quizQuestions, streak, isEndless],
   );
 
   useEffect(() => {
@@ -158,7 +177,7 @@ export default function QuizScreen() {
     const baseParams = {
       score: String(score),
       correct: String(correctCount),
-      total: String(questions.length),
+      total: String(isEndless ? outcomesRef.current.length : questions.length),
       bestStreak: String(bestStreak),
       mode: settings.mode,
       difficulty: settings.difficulty,
@@ -166,6 +185,23 @@ export default function QuizScreen() {
       time: String(settings.timePerQuestion),
       pattern: outcomesRef.current.join(''),
     };
+    if (isEndless) {
+      // Endless has its own best score, separate from the per-config ones.
+      const prevBest = bestFor(ENDLESS_SCORE_KEY);
+      const isNewBest = recordResult(ENDLESS_SCORE_KEY, score);
+      router.replace({
+        pathname: '/results',
+        params: {
+          ...baseParams,
+          endless: '1',
+          mode: 'mixed',
+          difficulty: 'mixed',
+          isNewBest: isNewBest ? '1' : '0',
+          prevBest: String(prevBest),
+        },
+      });
+      return;
+    }
     if (isDaily) {
       // The daily run's "best" is the best score across all prior days, and
       // completing today keeps the day streak alive (replays don't reset it).
@@ -200,6 +236,7 @@ export default function QuizScreen() {
       },
     });
   }, [
+    isEndless,
     isDaily,
     dailyDate,
     recordDailyResult,
@@ -215,6 +252,27 @@ export default function QuizScreen() {
   ]);
 
   const goNext = useCallback(() => {
+    if (isEndless) {
+      if (runOver) {
+        finish();
+        return;
+      }
+      const nextIndex = index + 1;
+      // Append the next question before advancing; it ramps difficulty and
+      // alternates capitals/flags while avoiding countries already played.
+      setEndlessQuestions((qs) => [
+        ...qs,
+        generateQuestion(
+          endlessMode(nextIndex),
+          endlessDifficulty(nextIndex),
+          new Set(qs.map((q) => q.country.name)),
+        ),
+      ]);
+      setIndex(nextIndex);
+      setSelected(null);
+      setRevealed(false);
+      return;
+    }
     if (index < questions.length - 1) {
       setTimeLeft(settings.timePerQuestion);
       setIndex((i) => i + 1);
@@ -223,19 +281,22 @@ export default function QuizScreen() {
     } else {
       finish();
     }
-  }, [index, questions.length, settings.timePerQuestion, finish]);
+  }, [isEndless, runOver, finish, index, questions.length, settings.timePerQuestion]);
 
   useEffect(() => {
     // Flow: correct answers auto-advance so a run never stalls on taps; wrong
     // and timed-out answers stay up so the correction can be read. Tapping
     // Next still works during the window (state change clears this timer).
-    if (!revealed || selected === null || selected !== questions[index]?.correctAnswer) return;
-    const id = setTimeout(goNext, index === questions.length - 1 ? 1400 : 900);
+    if (!revealed || selected === null || selected !== quizQuestions[index]?.correctAnswer) return;
+    const id = setTimeout(
+      goNext,
+      isEndless || index < quizQuestions.length - 1 ? 900 : 1400,
+    );
     return () => clearTimeout(id);
-  }, [revealed, selected, index, questions, goNext]);
+  }, [revealed, selected, index, quizQuestions, isEndless, goNext]);
 
-  const question = questions[index];
-  const isLast = index === questions.length - 1;
+  const question = quizQuestions[index];
+  const isLast = isEndless ? runOver : index === quizQuestions.length - 1;
 
   let feedback: { text: string; ok: boolean } | null = null;
   if (revealed) {
@@ -254,12 +315,26 @@ export default function QuizScreen() {
         <View className="flex-1 px-5 pt-4 pb-5">
         <View className="flex-row items-center gap-3">
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => (isEndless ? finish() : router.back())}
             accessibilityLabel="Quit quiz"
             className="h-9 w-9 items-center justify-center rounded-full bg-element active:opacity-70">
             <X size={18} color={colors.content} strokeWidth={2.5} />
           </Pressable>
-          <ProgressDots current={index} total={questions.length} />
+          {isEndless ? (
+            <View className="flex-1 flex-row items-center justify-center gap-1.5">
+              {Array.from({ length: ENDLESS_LIVES }, (_, i) => (
+                <Heart
+                  key={i}
+                  size={17}
+                  color={i < lives ? colors.wrong : colors.edge}
+                  fill={i < lives ? colors.wrong : 'transparent'}
+                  strokeWidth={2}
+                />
+              ))}
+            </View>
+          ) : (
+            <ProgressDots current={index} total={questions.length} />
+          )}
           <View className="flex-row gap-1.5">
             <View className="flex-row items-center gap-1 rounded-full bg-element px-2.5 py-1">
               <Star size={13} color={colors.amber} fill={colors.amber} />

@@ -94,6 +94,41 @@ export function dailyMode(date: string): QuizMode {
   return Number.isNaN(day) || day % 2 === 0 ? 'capital' : 'flag';
 }
 
+export const ENDLESS_LIVES = 3;
+export const ENDLESS_SCORE_KEY = 'endless-mixed';
+
+// Endless ramps the option count as the run gets longer.
+export function endlessDifficulty(index: number): Difficulty {
+  if (index < 5) return 'easy';
+  if (index < 10) return 'medium';
+  return 'hard';
+}
+
+// Endless alternates capitals and flags so no two consecutive questions drill
+// the same skill.
+export function endlessMode(index: number): QuizMode {
+  return index % 2 === 0 ? 'capital' : 'flag';
+}
+
+// One question for endless mode, avoiding countries already used in the run
+// (falling back to the full pool only when everything has been played).
+export function generateQuestion(
+  mode: QuizMode,
+  difficulty: Difficulty,
+  exclude: ReadonlySet<string> = new Set(),
+): Question {
+  const optionCount = DIFFICULTY_OPTIONS[difficulty];
+  const pool = COUNTRIES.filter((c) => !exclude.has(c.name));
+  const source = pool.length > 0 ? pool : COUNTRIES;
+  const country = source[Math.floor(Math.random() * source.length)];
+  return {
+    country,
+    correctAnswer: answerFor(mode, country),
+    mode,
+    options: buildOptions(mode, country, optionCount),
+  };
+}
+
 function answerFor(mode: QuizMode, country: Country): string {
   return mode === 'capital' ? country.capital : country.name;
 }

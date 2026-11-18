@@ -84,6 +84,7 @@ export default function ResultsScreen() {
     date?: string;
     dayStreak?: string;
     pattern?: string;
+    endless?: string;
   }>();
   const router = useRouter();
   const colors = useUiColors();
@@ -96,6 +97,7 @@ export default function ResultsScreen() {
   const prevBest = Number(params.prevBest ?? 0);
   const gap = prevBest - score;
   const isDaily = params.daily === '1';
+  const isEndless = params.endless === '1';
   const date = params.date ?? '';
   const dayStreak = Number(params.dayStreak ?? 0);
   const pattern = params.pattern ?? '';
@@ -137,6 +139,7 @@ export default function ResultsScreen() {
         time,
         count: String(total),
         ...(isDaily ? { daily: '1', date } : {}),
+        ...(isEndless ? { endless: '1' } : {}),
       },
     });
   };
@@ -200,7 +203,9 @@ export default function ResultsScreen() {
         </View>
 
         <View className="mt-4 flex-row justify-center gap-1.5">
-          <ConfigPill label={mode === 'capital' ? 'Capital Quiz' : 'Flag Quiz'} />
+          <ConfigPill
+            label={mode === 'capital' ? 'Capital Quiz' : mode === 'flag' ? 'Flag Quiz' : 'Endless'}
+          />
           <ConfigPill label={difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} />
           <ConfigPill label={timed ? `${time}s timer` : 'Untimed'} />
         </View>

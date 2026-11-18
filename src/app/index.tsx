@@ -1,7 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import {
   CalendarDays,
   Check,
+  ChevronRight,
   Flag as FlagIcon,
   Flame,
   Globe,
@@ -12,7 +14,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -56,6 +58,35 @@ const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   hard: 'Hard',
 };
 
+const SETTINGS_KEY = 'capital-quiz/last-settings';
+
+interface LastSettings {
+  mode: QuizMode;
+  difficulty: Difficulty;
+  timed: TimedOption;
+}
+
+// Tolerant parse: anything unexpected in storage falls back to defaults
+// instead of breaking the home screen.
+function parseLastSettings(raw: string | null): LastSettings | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<LastSettings>;
+    const validMode = parsed.mode === 'capital' || parsed.mode === 'flag';
+    const validDifficulty =
+      parsed.difficulty === 'easy' || parsed.difficulty === 'medium' || parsed.difficulty === 'hard';
+    const validTimed = ['off', '10', '20', '30'].includes(parsed.timed as TimedOption);
+    if (!validMode || !validDifficulty || !validTimed) return null;
+    return {
+      mode: parsed.mode as QuizMode,
+      difficulty: parsed.difficulty as Difficulty,
+      timed: parsed.timed as TimedOption,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const { bestFor } = useScores();
@@ -66,6 +97,39 @@ export default function HomeScreen() {
   const [difficulty, setDifficulty] = useState<Difficulty>('easy');
   const [timed, setTimed] = useState<TimedOption>('off');
   const [muted, setMutedState] = useState(isMuted());
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  // Quick Play starts with the last configuration the player chose, so a
+  // returning player never has to re-pick settings.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved = parseLastSettings(await AsyncStorage.getItem(SETTINGS_KEY));
+        if (saved && !cancelled) {
+          setMode(saved.mode);
+          setDifficulty(saved.difficulty);
+          setTimed(saved.timed);
+        }
+      } catch {
+        // ignore read errors — defaults are fine
+      } finally {
+        if (!cancelled) setSettingsLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    // Only persist once the saved settings have loaded, otherwise mount
+    // defaults would overwrite the player's real preferences.
+    if (!settingsLoaded) return;
+    AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ mode, difficulty, timed })).catch(() => {
+      // ignore persistence errors
+    });
+  }, [mode, difficulty, timed, settingsLoaded]);
 
   const onToggleMute = () => {
     const next = !muted;
@@ -148,9 +212,26 @@ export default function HomeScreen() {
         </View>
 
         <Pressable
+          onPress={start}
+          accessibilityLabel="Quick play"
+          className="mt-5 flex-row items-center gap-3 rounded-2xl bg-primary p-4 active:opacity-80">
+          <View className="h-10 w-10 items-center justify-center rounded-xl bg-white/20">
+            <Play size={18} color="#ffffff" fill="#ffffff" />
+          </View>
+          <View className="flex-1">
+            <Text className="text-[15px] font-bold text-primaryText">Quick Play</Text>
+            <Text className="mt-0.5 text-xs text-primaryText opacity-80" numberOfLines={1}>
+              {mode === 'capital' ? 'Capital' : 'Flag'} · {DIFFICULTY_LABELS[difficulty]} ·{' '}
+              {timed === 'off' ? 'Untimed' : `${timed}s timer`}
+            </Text>
+          </View>
+          <ChevronRight size={18} color="#ffffff" strokeWidth={2.5} />
+        </Pressable>
+
+        <Pressable
           onPress={startDaily}
           accessibilityLabel="Play the daily challenge"
-          className="mt-5 flex-row items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:opacity-80">
+          className="mt-3 flex-row items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:opacity-80">
           <View className="h-[38px] w-[38px] items-center justify-center rounded-xl bg-amberSoft">
             <CalendarDays size={18} color={colors.amber} />
           </View>

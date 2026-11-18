@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Check, ChevronRight, Flame, Heart, Star, Target, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnswerOption, type AnswerState } from '@/components/answer-option';
@@ -412,6 +412,9 @@ export default function QuizScreen() {
           </View>
         )}
 
+        {/* Hard mode renders 8 options; on short screens the list needs to
+            scroll while the feedback/next area stays pinned below. */}
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <View className="my-7 items-center gap-1.5">
           {(isDaily || question.country.name in missed) && (
             <View className="mb-1.5 flex-row items-center gap-1.5">
@@ -450,20 +453,21 @@ export default function QuizScreen() {
           )}
         </View>
 
-        <View className="gap-2.5">
-          {question.options.map((option, i) => (
-            <AnswerOption
-              key={option}
-              label={option}
-              index={i}
-              state={optionStateFor(option, question.correctAnswer, selected, revealed)}
-              disabled={revealed}
-              onPress={() => selectAnswer(option)}
-            />
-          ))}
-        </View>
+          <View className="gap-2.5">
+            {question.options.map((option, i) => (
+              <AnswerOption
+                key={option}
+                label={option}
+                index={i}
+                state={optionStateFor(option, question.correctAnswer, selected, revealed)}
+                disabled={revealed}
+                onPress={() => selectAnswer(option)}
+              />
+            ))}
+          </View>
+        </ScrollView>
 
-        <View className="mt-auto min-h-[104px] justify-end gap-3 pt-4">
+          <View className="min-h-[104px] justify-end gap-3 pt-3">
           {revealed && feedback ? (
             <>
               <View

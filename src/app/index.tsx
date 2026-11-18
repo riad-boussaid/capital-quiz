@@ -1,12 +1,24 @@
 import { useRouter } from 'expo-router';
-import { Check, Flag as FlagIcon, Globe, Landmark, Play, Trophy } from 'lucide-react-native';
+import {
+  CalendarDays,
+  Check,
+  Flag as FlagIcon,
+  Flame,
+  Globe,
+  Landmark,
+  Play,
+  Trophy,
+} from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Segmented } from '@/components/segmented';
+import { todayKey } from '@/lib/daily';
+import { dailyMode, DAILY_DIFFICULTY, DAILY_QUESTION_COUNT } from '@/lib/quiz';
 import type { Difficulty, QuizMode } from '@/lib/quiz';
 import { useUiColors } from '@/lib/theme';
+import { useDaily } from '@/store/DailyContext';
 import { scoreKey, useScores } from '@/store/ScoresContext';
 
 type TimedOption = 'off' | '10' | '20' | '30';
@@ -38,6 +50,7 @@ const DIFFICULTY_LABELS: Record<Difficulty, string> = {
 export default function HomeScreen() {
   const router = useRouter();
   const { bestFor } = useScores();
+  const { dayStreak, isCompletedToday, todayResult } = useDaily();
   const colors = useUiColors();
 
   const [mode, setMode] = useState<QuizMode>('capital');
@@ -46,6 +59,11 @@ export default function HomeScreen() {
 
   const timedLabel = timed === 'off' ? 'off' : timed;
   const best = bestFor(scoreKey(mode, difficulty, timedLabel));
+
+  // The daily challenge is fixed per day: seeded questions, medium difficulty,
+  // untimed, and the focus (capitals vs flags) alternates with the date.
+  const dailyDate = todayKey();
+  const dailyQuizMode = dailyMode(dailyDate);
 
   const start = () => {
     const timedOn = timed !== 'off';
@@ -57,6 +75,21 @@ export default function HomeScreen() {
         timed: timedOn ? '1' : '0',
         time: timedOn ? timed : '0',
         count: '10',
+      },
+    });
+  };
+
+  const startDaily = () => {
+    router.push({
+      pathname: '/quiz',
+      params: {
+        daily: '1',
+        date: dailyDate,
+        mode: dailyQuizMode,
+        difficulty: DAILY_DIFFICULTY,
+        timed: '0',
+        time: '0',
+        count: String(DAILY_QUESTION_COUNT),
       },
     });
   };
@@ -79,7 +112,37 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View className="mt-5 flex-row items-center gap-3 rounded-2xl border border-edge bg-card p-4">
+        <Pressable
+          onPress={startDaily}
+          accessibilityLabel="Play the daily challenge"
+          className="mt-5 flex-row items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:opacity-80">
+          <View className="h-[38px] w-[38px] items-center justify-center rounded-xl bg-amberSoft">
+            <CalendarDays size={18} color={colors.amber} />
+          </View>
+          <View className="flex-1">
+            <View className="flex-row items-center gap-2">
+              <Text className="text-[13px] font-bold text-content">Daily Challenge</Text>
+              {dayStreak > 0 && (
+                <View className="flex-row items-center gap-1 rounded-full bg-amberSoft px-2 py-0.5">
+                  <Flame size={11} color={colors.amber} />
+                  <Text className="text-[11px] font-bold text-amber tabular-nums">
+                    {dayStreak}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text className="mt-0.5 text-xs text-muted" numberOfLines={1}>
+              {isCompletedToday && todayResult
+                ? `Done — ${todayResult.score} pts today · replay`
+                : `Today: ${dailyQuizMode === 'capital' ? 'capitals' : 'flags'} · ${DAILY_QUESTION_COUNT} questions`}
+            </Text>
+          </View>
+          <View className="h-8 w-8 items-center justify-center rounded-full bg-primary">
+            <Play size={14} color="#ffffff" fill="#ffffff" />
+          </View>
+        </Pressable>
+
+        <View className="mt-3 flex-row items-center gap-3 rounded-2xl border border-edge bg-card p-4">
           <View className="h-[38px] w-[38px] items-center justify-center rounded-xl bg-primarySoft">
             <Trophy size={18} color={colors.primary} />
           </View>

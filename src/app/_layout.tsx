@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import '@/global.css';
 
+import { DailyProvider } from '@/store/DailyContext';
 import { ScoresProvider } from '@/store/ScoresContext';
 
 // SafeAreaView is a third-party component, so NativeWind needs an explicit
@@ -17,14 +18,16 @@ export default function RootLayout() {
 
   return (
     <ScoresProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="quiz" />
-          <Stack.Screen name="results" />
-        </Stack>
-        <StatusBar style="auto" />
-      </ThemeProvider>
+      <DailyProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="quiz" />
+            <Stack.Screen name="results" />
+          </Stack>
+          <StatusBar style="auto" />
+        </ThemeProvider>
+      </DailyProvider>
     </ScoresProvider>
   );
 }

@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Check, ChevronRight, Flame, Star, X } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,8 +9,20 @@ import { AnswerOption, type AnswerState } from '@/components/answer-option';
 import { Flag } from '@/components/flag';
 import { ProgressDots } from '@/components/progress-dots';
 import { TimerBar } from '@/components/timer-bar';
-import { generateQuestions, POINTS_PER_CORRECT, type Difficulty, type QuizMode } from '@/lib/quiz';
+import {
+  dailyMode,
+  DAILY_DIFFICULTY,
+  generateQuestions,
+  mulberry32,
+  scoreAnswer,
+  seedFromDate,
+  type Award,
+  type Difficulty,
+  type QuizMode,
+} from '@/lib/quiz';
+import { todayKey } from '@/lib/daily';
 import { useUiColors } from '@/lib/theme';
+import { useDaily } from '@/store/DailyContext';
 import { scoreKey, useScores } from '@/store/ScoresContext';
 
 const QUESTION_COUNT = 10;
@@ -43,23 +55,38 @@ export default function QuizScreen() {
     timed?: string;
     time?: string;
     count?: string;
+    daily?: string;
+    date?: string;
   }>();
   const router = useRouter();
-  const { recordResult } = useScores();
+  const { bestFor, recordResult } = useScores();
+  const { recordDailyResult } = useDaily();
   const colors = useUiColors();
+
+  const isDaily = params.daily === '1';
+  const dailyDate = isDaily ? (params.date ?? todayKey()) : '';
 
   const settings = useMemo(
     () => ({
-      mode: (params.mode as QuizMode) ?? 'capital',
-      difficulty: (params.difficulty as Difficulty) ?? 'easy',
+      mode: (params.mode as QuizMode) ?? (isDaily ? dailyMode(dailyDate) : 'capital'),
+      difficulty: (params.difficulty as Difficulty) ?? (isDaily ? DAILY_DIFFICULTY : 'easy'),
       timed: params.timed === '1',
       timePerQuestion: Number(params.time) || 15,
       questionCount: Number(params.count) || QUESTION_COUNT,
     }),
-    [params.mode, params.difficulty, params.timed, params.time, params.count],
+    [params.mode, params.difficulty, params.timed, params.time, params.count, isDaily, dailyDate],
   );
 
-  const questions = useMemo(() => generateQuestions(settings), [settings]);
+  // Daily runs use a date-seeded PRNG so everyone gets the same quiz; regular
+  // runs keep the default Math.random path.
+  const questions = useMemo(
+    () =>
+      generateQuestions(
+        settings,
+        isDaily ? mulberry32(seedFromDate(dailyDate)) : Math.random,
+      ),
+    [settings, isDaily, dailyDate],
+  );
 
   const [index, setIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -69,6 +96,16 @@ export default function QuizScreen() {
   const [revealed, setRevealed] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const [timeLeft, setTimeLeft] = useState(settings.timePerQuestion);
+  const [award, setAward] = useState<Award | null>(null);
+  // Set on mount and on every question change by the effect below; 0 until then.
+  const questionStartRef = useRef(0);
+  // One "1"/"0" per answered question, in order — feeds the results share card.
+  const outcomesRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    // Each question restarts the clock that drives the speed bonus.
+    questionStartRef.current = Date.now();
+  }, [index]);
 
   const timedLabel = settings.timed ? String(settings.timePerQuestion) : 'off';
   const key = scoreKey(settings.mode, settings.difficulty, timedLabel);
@@ -81,19 +118,22 @@ export default function QuizScreen() {
       setSelected(option);
       setRevealed(true);
       feedbackHaptic(isCorrect);
+      outcomesRef.current.push(isCorrect ? '1' : '0');
       if (isCorrect) {
+        const nextStreak = streak + 1;
+        const elapsed = (Date.now() - questionStartRef.current) / 1000;
+        const earned = scoreAnswer(elapsed, nextStreak);
         setCorrectCount((c) => c + 1);
-        setScore((s) => s + POINTS_PER_CORRECT);
-        setStreak((s) => {
-          const next = s + 1;
-          setBestStreak((b) => Math.max(b, next));
-          return next;
-        });
+        setScore((s) => s + earned.points);
+        setStreak(nextStreak);
+        setBestStreak((b) => Math.max(b, nextStreak));
+        setAward(earned);
       } else {
         setStreak(0);
+        setAward(null);
       }
     },
-    [revealed, index, questions],
+    [revealed, index, questions, streak],
   );
 
   useEffect(() => {
@@ -114,25 +154,67 @@ export default function QuizScreen() {
     return () => clearTimeout(id);
   }, [settings.timed, revealed, index, settings.timePerQuestion, selectAnswer]);
 
-  const finish = () => {
+  const finish = useCallback(() => {
+    const baseParams = {
+      score: String(score),
+      correct: String(correctCount),
+      total: String(questions.length),
+      bestStreak: String(bestStreak),
+      mode: settings.mode,
+      difficulty: settings.difficulty,
+      timed: settings.timed ? '1' : '0',
+      time: String(settings.timePerQuestion),
+      pattern: outcomesRef.current.join(''),
+    };
+    if (isDaily) {
+      // The daily run's "best" is the best score across all prior days, and
+      // completing today keeps the day streak alive (replays don't reset it).
+      const outcome = recordDailyResult(dailyDate, {
+        score,
+        correct: correctCount,
+        total: questions.length,
+      });
+      router.replace({
+        pathname: '/results',
+        params: {
+          ...baseParams,
+          daily: '1',
+          date: dailyDate,
+          isNewBest: outcome.isNewBest ? '1' : '0',
+          prevBest: String(outcome.prevBest),
+          dayStreak: String(outcome.dayStreak),
+        },
+      });
+      return;
+    }
+    // Capture the old best before recordResult overwrites it, so results can
+    // show how close a non-record run came.
+    const prevBest = bestFor(key);
     const isNewBest = recordResult(key, score);
     router.replace({
       pathname: '/results',
       params: {
-        score: String(score),
-        correct: String(correctCount),
-        total: String(questions.length),
-        bestStreak: String(bestStreak),
+        ...baseParams,
         isNewBest: isNewBest ? '1' : '0',
-        mode: settings.mode,
-        difficulty: settings.difficulty,
-        timed: settings.timed ? '1' : '0',
-        time: String(settings.timePerQuestion),
+        prevBest: String(prevBest),
       },
     });
-  };
+  }, [
+    isDaily,
+    dailyDate,
+    recordDailyResult,
+    score,
+    correctCount,
+    questions.length,
+    bestStreak,
+    settings,
+    bestFor,
+    key,
+    recordResult,
+    router,
+  ]);
 
-  const goNext = () => {
+  const goNext = useCallback(() => {
     if (index < questions.length - 1) {
       setTimeLeft(settings.timePerQuestion);
       setIndex((i) => i + 1);
@@ -141,7 +223,16 @@ export default function QuizScreen() {
     } else {
       finish();
     }
-  };
+  }, [index, questions.length, settings.timePerQuestion, finish]);
+
+  useEffect(() => {
+    // Flow: correct answers auto-advance so a run never stalls on taps; wrong
+    // and timed-out answers stay up so the correction can be read. Tapping
+    // Next still works during the window (state change clears this timer).
+    if (!revealed || selected === null || selected !== questions[index]?.correctAnswer) return;
+    const id = setTimeout(goNext, index === questions.length - 1 ? 1400 : 900);
+    return () => clearTimeout(id);
+  }, [revealed, selected, index, questions, goNext]);
 
   const question = questions[index];
   const isLast = index === questions.length - 1;
@@ -149,7 +240,7 @@ export default function QuizScreen() {
   let feedback: { text: string; ok: boolean } | null = null;
   if (revealed) {
     if (selected === question.correctAnswer) {
-      feedback = { text: `Correct! +${POINTS_PER_CORRECT} points`, ok: true };
+      feedback = { text: `Correct! +${award?.points ?? 0} points`, ok: true };
     } else if (selected === null) {
       feedback = { text: `Time's up — it's ${question.correctAnswer}`, ok: false };
     } else {
@@ -193,6 +284,13 @@ export default function QuizScreen() {
         )}
 
         <View className="my-7 items-center gap-1.5">
+          {isDaily && (
+            <View className="mb-1.5 rounded-full bg-primarySoft px-3 py-1">
+              <Text className="text-[11px] font-bold uppercase tracking-widest text-primary">
+                Daily Challenge
+              </Text>
+            </View>
+          )}
           <Flag emoji={question.country.flag} size={104} />
           {question.mode === 'capital' ? (
             <>
@@ -241,12 +339,24 @@ export default function QuizScreen() {
                     <X size={13} color="#ffffff" strokeWidth={3} />
                   )}
                 </View>
-                <Text
-                  className={`flex-1 text-[13px] font-bold ${
-                    feedback.ok ? 'text-correct' : 'text-wrong'
-                  }`}>
-                  {feedback.text}
-                </Text>
+                <View className="flex-1 gap-1">
+                  <Text
+                    className={`text-[13px] font-bold ${
+                      feedback.ok ? 'text-correct' : 'text-wrong'
+                    }`}>
+                    {feedback.text}
+                  </Text>
+                  {feedback.ok && award && (award.speedBonus > 0 || award.multiplier > 1) && (
+                    <Text className="text-[11px] font-bold text-correct opacity-80">
+                      {[
+                        award.speedBonus > 0 ? `⚡ +${award.speedBonus} speed` : null,
+                        award.multiplier > 1 ? `🔥 ×${award.multiplier} streak` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                  )}
+                </View>
               </View>
               <Pressable
                 onPress={goNext}
@@ -259,7 +369,7 @@ export default function QuizScreen() {
             </>
           ) : (
             <Text className="text-center text-xs text-muted">
-              Select an answer — {POINTS_PER_CORRECT} points for every correct one
+              Answer fast for a speed bonus — streaks multiply your points
             </Text>
           )}
         </View>

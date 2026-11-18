@@ -1,9 +1,12 @@
 import { COUNTRIES } from '@/data/countries';
 import {
   DIFFICULTY_OPTIONS,
-  POINTS_PER_CORRECT,
+  POINTS_BASE,
   generateQuestions,
+  scoreAnswer,
   shuffle,
+  speedBonus,
+  streakMultiplier,
   type Difficulty,
   type QuizSettings,
 } from '@/lib/quiz';
@@ -102,8 +105,54 @@ describe('generateQuestions', () => {
   });
 });
 
-describe('constants', () => {
-  it('awards 10 points per correct answer', () => {
-    expect(POINTS_PER_CORRECT).toBe(10);
+describe('speedBonus', () => {
+  it('pays the full bonus within 5 seconds', () => {
+    expect(speedBonus(0)).toBe(5);
+    expect(speedBonus(5)).toBe(5);
+  });
+
+  it('pays a reduced bonus within 10 seconds', () => {
+    expect(speedBonus(5.01)).toBe(3);
+    expect(speedBonus(10)).toBe(3);
+  });
+
+  it('pays nothing after 10 seconds', () => {
+    expect(speedBonus(10.01)).toBe(0);
+    expect(speedBonus(60)).toBe(0);
+  });
+});
+
+describe('streakMultiplier', () => {
+  it('pays 1× below three in a row', () => {
+    expect(streakMultiplier(0)).toBe(1);
+    expect(streakMultiplier(2)).toBe(1);
+  });
+
+  it('pays 1.5× from three in a row', () => {
+    expect(streakMultiplier(3)).toBe(1.5);
+    expect(streakMultiplier(4)).toBe(1.5);
+  });
+
+  it('pays 2× from five in a row', () => {
+    expect(streakMultiplier(5)).toBe(2);
+    expect(streakMultiplier(12)).toBe(2);
+  });
+});
+
+describe('scoreAnswer', () => {
+  it('pays the base points for a slow first answer', () => {
+    expect(scoreAnswer(20, 1).points).toBe(POINTS_BASE);
+  });
+
+  it('stacks speed bonus and streak multiplier', () => {
+    // (10 + 5) × 2 — fastest answer on a 5+ streak
+    expect(scoreAnswer(3, 5).points).toBe(30);
+    // (10 + 3) × 1.5 = 19.5, rounded up
+    expect(scoreAnswer(8, 3).points).toBe(20);
+  });
+
+  it('reports the breakdown for feedback display', () => {
+    const award = scoreAnswer(12, 3);
+    expect(award).toEqual({ points: 15, speedBonus: 0, multiplier: 1.5 });
   });
 });

@@ -15,7 +15,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.capitalquiz",
+      "package": "com.riadboussaid.capitalquiz",
       "versionCode": 4
     },
     "web": {
@@ -33,7 +33,9 @@
           "imageWidth": 140
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "./plugins/with-release-signing",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,

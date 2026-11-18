@@ -9,10 +9,13 @@ import {
   Trophy,
   type LucideIcon,
 } from 'lucide-react-native';
+import { useEffect } from 'react';
 import { Platform, Pressable, Share, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AccuracyRing } from '@/components/accuracy-ring';
+import { Confetti } from '@/components/confetti';
+import { playSfx } from '@/lib/sound';
 import { useUiColors } from '@/lib/theme';
 
 function tierFor(accuracy: number): string {
@@ -128,6 +131,11 @@ export default function ResultsScreen() {
   const difficulty = params.difficulty ?? 'easy';
   const timed = params.timed === '1';
   const time = params.time ?? '0';
+  const celebrate = isNewBest || (total > 0 && accuracy === 100);
+
+  useEffect(() => {
+    playSfx('finish');
+  }, []);
 
   const playAgain = () => {
     router.replace({
@@ -146,6 +154,7 @@ export default function ResultsScreen() {
 
   return (
     <View className="flex-1 bg-background">
+      {celebrate && <Confetti />}
       <SafeAreaView className="flex-1 w-full max-w-[800px] self-center">
         <View className="flex-1 px-6 pt-10 pb-5">
         <View className="items-center">

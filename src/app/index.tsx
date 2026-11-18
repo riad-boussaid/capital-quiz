@@ -9,6 +9,8 @@ import {
   Landmark,
   Play,
   Trophy,
+  Volume2,
+  VolumeX,
 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -22,6 +24,7 @@ import {
   DAILY_QUESTION_COUNT,
   ENDLESS_SCORE_KEY,
 } from '@/lib/quiz';
+import { isMuted, setMuted } from '@/lib/sound';
 import type { Difficulty, QuizMode } from '@/lib/quiz';
 import { useUiColors } from '@/lib/theme';
 import { useDaily } from '@/store/DailyContext';
@@ -62,6 +65,13 @@ export default function HomeScreen() {
   const [mode, setMode] = useState<QuizMode>('capital');
   const [difficulty, setDifficulty] = useState<Difficulty>('easy');
   const [timed, setTimed] = useState<TimedOption>('off');
+  const [muted, setMutedState] = useState(isMuted());
+
+  const onToggleMute = () => {
+    const next = !muted;
+    setMutedState(next);
+    void setMuted(next);
+  };
 
   const timedLabel = timed === 'off' ? 'off' : timed;
   const best = bestFor(scoreKey(mode, difficulty, timedLabel));
@@ -116,6 +126,16 @@ export default function HomeScreen() {
           contentContainerStyle={{ paddingBottom: 4 }}
           showsVerticalScrollIndicator={false}>
         <View className="items-center gap-3">
+          <Pressable
+            onPress={onToggleMute}
+            accessibilityLabel={muted ? 'Unmute sounds' : 'Mute sounds'}
+            className="absolute right-0 top-0 h-9 w-9 items-center justify-center rounded-full bg-element active:opacity-70">
+            {muted ? (
+              <VolumeX size={17} color={colors.muted} strokeWidth={2.5} />
+            ) : (
+              <Volume2 size={17} color={colors.content} strokeWidth={2.5} />
+            )}
+          </Pressable>
           <View className="h-14 w-14 items-center justify-center rounded-[20px] bg-primary">
             <Globe size={28} color="#ffffff" strokeWidth={2} />
           </View>

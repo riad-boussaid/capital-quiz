@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Check, ChevronRight, Flame, Heart, Star, Target, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnswerOption, type AnswerState } from '@/components/answer-option';
@@ -27,6 +27,7 @@ import {
   type QuizMode,
 } from '@/lib/quiz';
 import { todayKey } from '@/lib/daily';
+import { playSfx } from '@/lib/sound';
 import { useUiColors } from '@/lib/theme';
 import { useDaily } from '@/store/DailyContext';
 import { useMissed } from '@/store/MissedContext';
@@ -41,6 +42,46 @@ function feedbackHaptic(ok: boolean) {
   ).catch(() => {
     // haptics are best-effort
   });
+}
+
+// Tweens a number up to its new value so the score chip counts instead of jumps.
+function useCountUp(target: number, durationMs = 400): number {
+  const [display, setDisplay] = useState(target);
+  const fromRef = useRef(target);
+  useEffect(() => {
+    const from = fromRef.current;
+    fromRef.current = target;
+    if (from === target) return;
+    let raf = 0;
+    const start = Date.now();
+    const step = () => {
+      const t = Math.min(1, (Date.now() - start) / durationMs);
+      setDisplay(Math.round(from + (target - from) * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs]);
+  return display;
+}
+
+// Reruns its spring every time the streak changes, so the flame pops.
+function StreakBadge({ streak }: { streak: number }) {
+  const colors = useUiColors();
+  const [scale] = useState(() => new Animated.Value(0.6));
+  useEffect(() => {
+    scale.setValue(0.6);
+    Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }).start();
+  }, [scale, streak]);
+
+  return (
+    <Animated.View
+      style={{ transform: [{ scale }] }}
+      className="flex-row items-center gap-1 rounded-full bg-element px-2.5 py-1">
+      <Flame size={13} color={colors.amber} />
+      <Text className="text-xs font-bold text-content tabular-nums">{streak}</Text>
+    </Animated.View>
+  );
 }
 
 function optionStateFor(
@@ -131,6 +172,7 @@ export default function QuizScreen() {
 
   const quizQuestions = isEndless ? endlessQuestions : questions;
   const runOver = isEndless && lives === 0;
+  const displayScore = useCountUp(score);
 
   const selectAnswer = useCallback(
     (option: string | null) => {
@@ -152,11 +194,14 @@ export default function QuizScreen() {
         setStreak(nextStreak);
         setBestStreak((b) => Math.max(b, nextStreak));
         setAward(earned);
+        playSfx('correct');
+        if (nextStreak === 3 || nextStreak === 5) playSfx('streak');
         recordHit(question.country.name);
       } else {
         setStreak(0);
         setAward(null);
         if (isEndless) setLives((l) => l - 1);
+        playSfx('wrong');
         recordMiss(question.country.name);
       }
     },
@@ -180,6 +225,12 @@ export default function QuizScreen() {
     const id = setTimeout(() => selectAnswer(null), settings.timePerQuestion * 1000);
     return () => clearTimeout(id);
   }, [settings.timed, revealed, index, settings.timePerQuestion, selectAnswer]);
+
+  useEffect(() => {
+    // Urgency ticks over the last three seconds of a timed question.
+    if (!settings.timed || revealed) return;
+    if (timeLeft > 0 && timeLeft <= 3) playSfx('tick');
+  }, [timeLeft, settings.timed, revealed]);
 
   const finish = useCallback(() => {
     const baseParams = {
@@ -346,14 +397,9 @@ export default function QuizScreen() {
           <View className="flex-row gap-1.5">
             <View className="flex-row items-center gap-1 rounded-full bg-element px-2.5 py-1">
               <Star size={13} color={colors.amber} fill={colors.amber} />
-              <Text className="text-xs font-bold text-content tabular-nums">{score}</Text>
+              <Text className="text-xs font-bold text-content tabular-nums">{displayScore}</Text>
             </View>
-            {streak >= 2 && (
-              <View className="flex-row items-center gap-1 rounded-full bg-element px-2.5 py-1">
-                <Flame size={13} color={colors.amber} />
-                <Text className="text-xs font-bold text-content tabular-nums">{streak}</Text>
-              </View>
-            )}
+            {streak >= 2 && <StreakBadge streak={streak} />}
           </View>
         </View>
 

@@ -71,7 +71,7 @@ export function AccuracyRing({
       </Svg>
       <View className="absolute inset-0 items-center justify-center">
         <Text className="text-[40px] font-bold leading-10 text-content tabular-nums">
-          {score}
+          {Math.round(score * progress)}
         </Text>
         {caption ? <Text className="mt-1 text-[11px] text-muted">{caption}</Text> : null}
       </View>

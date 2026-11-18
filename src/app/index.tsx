@@ -15,7 +15,7 @@ import {
   VolumeX,
 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Segmented } from '@/components/segmented';
@@ -146,6 +146,11 @@ export default function HomeScreen() {
   const dailyDate = todayKey();
   const dailyQuizMode = dailyMode(dailyDate);
 
+  // Wide screens (tablets, web, landscape) get the two side cards in a row;
+  // phones keep the single-column stack.
+  const { width } = useWindowDimensions();
+  const wide = width >= 600;
+
   const start = () => {
     const timedOn = timed !== 'off';
     router.push({
@@ -228,10 +233,13 @@ export default function HomeScreen() {
           <ChevronRight size={18} color="#ffffff" strokeWidth={2.5} />
         </Pressable>
 
+        <View className={`mt-3 ${wide ? 'flex-row gap-3' : 'gap-3'}`}>
         <Pressable
           onPress={startDaily}
           accessibilityLabel="Play the daily challenge"
-          className="mt-3 flex-row items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:opacity-80">
+          className={`flex-row items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:opacity-80 ${
+            wide ? 'flex-1' : ''
+          }`}>
           <View className="h-[38px] w-[38px] items-center justify-center rounded-xl bg-amberSoft">
             <CalendarDays size={18} color={colors.amber} />
           </View>
@@ -261,7 +269,9 @@ export default function HomeScreen() {
         <Pressable
           onPress={startEndless}
           accessibilityLabel="Play endless mode"
-          className="mt-3 flex-row items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:opacity-80">
+          className={`flex-row items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:opacity-80 ${
+            wide ? 'flex-1' : ''
+          }`}>
           <View className="h-[38px] w-[38px] items-center justify-center rounded-xl bg-primarySoft">
             <InfinityIcon size={18} color={colors.primary} />
           </View>
@@ -275,6 +285,7 @@ export default function HomeScreen() {
             <Play size={14} color="#ffffff" fill="#ffffff" />
           </View>
         </Pressable>
+        </View>
 
         <View className="mt-3 flex-row items-center gap-3 rounded-2xl border border-edge bg-card p-4">
           <View className="h-[38px] w-[38px] items-center justify-center rounded-xl bg-primarySoft">

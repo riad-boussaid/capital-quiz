@@ -453,16 +453,18 @@ export default function QuizScreen() {
           )}
         </View>
 
-          <View className="gap-2.5">
+          <View className="flex-row flex-wrap justify-between gap-y-2.5">
             {question.options.map((option, i) => (
-              <AnswerOption
-                key={option}
-                label={option}
-                index={i}
-                state={optionStateFor(option, question.correctAnswer, selected, revealed)}
-                disabled={revealed}
-                onPress={() => selectAnswer(option)}
-              />
+              <View key={option} className="w-[48.5%]">
+                <AnswerOption
+                  compact
+                  label={option}
+                  index={i}
+                  state={optionStateFor(option, question.correctAnswer, selected, revealed)}
+                  disabled={revealed}
+                  onPress={() => selectAnswer(option)}
+                />
+              </View>
             ))}
           </View>
         </ScrollView>

@@ -125,7 +125,7 @@ export function generateQuestion(
     country,
     correctAnswer: answerFor(mode, country),
     mode,
-    options: buildOptions(mode, country, optionCount),
+    options: buildOptions(mode, country, difficulty, optionCount),
   };
 }
 
@@ -133,37 +133,61 @@ function answerFor(mode: QuizMode, country: Country): string {
   return mode === 'capital' ? country.capital : country.name;
 }
 
+// Share of decoys drawn from the subject's own continent, per difficulty:
+// random decoys are free answers, same-region ones make mistakes feel fair.
+const REGION_SHARE: Record<Difficulty, number> = { easy: 0.5, medium: 0.75, hard: 1 };
+
 function buildOptions(
   mode: QuizMode,
   subject: Country,
+  difficulty: Difficulty,
   count: number,
   rng: () => number = Math.random,
 ): string[] {
   const correct = answerFor(mode, subject);
-  const candidates = shuffle(
-    COUNTRIES.filter((c) => answerFor(mode, c) !== correct),
+  const others = COUNTRIES.filter((c) => answerFor(mode, c) !== correct);
+  const sameRegion = shuffle(
+    others.filter((c) => c.continent === subject.continent),
     rng,
   );
-  const decoys = new Set<string>();
-  for (const c of candidates) {
-    if (decoys.size >= count - 1) break;
-    decoys.add(answerFor(mode, c));
-  }
+  const elsewhere = shuffle(
+    others.filter((c) => c.continent !== subject.continent),
+    rng,
+  );
+  const quota = Math.min(sameRegion.length, Math.round((count - 1) * REGION_SHARE[difficulty]));
+  const decoys = new Set([
+    ...sameRegion.slice(0, quota).map((c) => answerFor(mode, c)),
+    ...elsewhere.slice(0, count - 1 - quota).map((c) => answerFor(mode, c)),
+  ]);
   return shuffle([correct, ...decoys], rng);
 }
 
+// Share of a regular quiz's questions reserved for previously missed
+// countries, so the quiz quietly drills what the player struggles with.
+export const MISSED_SHARE = 0.4;
+
 // The optional rng makes generation reproducible: callers pass mulberry32(seed)
 // for the daily challenge so everyone gets the same questions on a given day.
-export function generateQuestions(settings: QuizSettings, rng: () => number = Math.random): Question[] {
+// `missed` is a set of country names to prioritize (regular quizzes only —
+// the daily quiz must stay identical for everyone).
+export function generateQuestions(
+  settings: QuizSettings,
+  rng: () => number = Math.random,
+  missed: ReadonlySet<string> = new Set(),
+): Question[] {
   const optionCount = DIFFICULTY_OPTIONS[settings.difficulty];
-  const pool = shuffle(COUNTRIES, rng).slice(0, settings.questionCount);
+  const shuffled = shuffle(COUNTRIES, rng);
+  const missedPool = shuffled.filter((c) => missed.has(c.name));
+  const freshPool = shuffled.filter((c) => !missed.has(c.name));
+  const missedCount = Math.min(missedPool.length, Math.floor(settings.questionCount * MISSED_SHARE));
+  const pool = [...missedPool.slice(0, missedCount), ...freshPool].slice(0, settings.questionCount);
   return pool.map((country) => {
     const correctAnswer = answerFor(settings.mode, country);
     return {
       country,
       correctAnswer,
       mode: settings.mode,
-      options: buildOptions(settings.mode, country, optionCount, rng),
+      options: buildOptions(settings.mode, country, settings.difficulty, optionCount, rng),
     };
   });
 }

@@ -5,8 +5,10 @@ import {
   endlessMode,
   generateQuestion,
   generateQuestions,
+  mulberry32,
   POINTS_BASE,
   scoreAnswer,
+  seedFromDate,
   shuffle,
   speedBonus,
   streakMultiplier,
@@ -105,6 +107,72 @@ describe('generateQuestions', () => {
         expect(capitals.has(option)).toBe(true);
       }
     }
+  });
+});
+
+describe('region decoys', () => {
+  const countryForCapital = (capital: string) =>
+    COUNTRIES.find((c) => c.capital === capital)!;
+  const regionmatesOf = (country: { name: string; continent: string }) =>
+    COUNTRIES.filter((c) => c.continent === country.continent && c.name !== country.name).length;
+
+  it('draws every hard-mode decoy from the subject continent when possible', () => {
+    const questions = generateQuestions(settings({ difficulty: 'hard', questionCount: 40 }));
+    for (const question of questions) {
+      if (regionmatesOf(question.country) < DIFFICULTY_OPTIONS.hard - 1) continue;
+      for (const decoy of question.options) {
+        if (decoy === question.correctAnswer) continue;
+        expect(countryForCapital(decoy).continent).toBe(question.country.continent);
+      }
+    }
+  });
+
+  it('keeps easy mode solvable with a mix of regions', () => {
+    // easy quota: round(3 × 0.5) = 2 same-region decoys, 1 from elsewhere
+    const questions = generateQuestions(settings({ difficulty: 'easy', questionCount: 20 }));
+    for (const question of questions) {
+      if (regionmatesOf(question.country) < 2) continue;
+      const decoys = question.options.filter((o) => o !== question.correctAnswer);
+      const sameRegion = decoys.filter(
+        (o) => countryForCapital(o).continent === question.country.continent,
+      ).length;
+      expect(sameRegion).toBe(2);
+    }
+  });
+});
+
+describe('missed-country weighting', () => {
+  it('reserves part of a regular quiz for previously missed countries', () => {
+    const missed = new Set(['Kenya', 'France', 'Brazil']);
+    const questions = generateQuestions(settings({ questionCount: 10 }), Math.random, missed);
+    const names = questions.map((q) => q.country.name);
+    for (const name of missed) expect(names).toContain(name);
+    expect(new Set(names).size).toBe(10);
+  });
+
+  it('stays deterministic for a given seed and missed set', () => {
+    const missed = new Set(['Kenya', 'France', 'Brazil']);
+    const a = generateQuestions(
+      settings({ questionCount: 10 }),
+      mulberry32(seedFromDate('2026-11-18')),
+      missed,
+    );
+    const b = generateQuestions(
+      settings({ questionCount: 10 }),
+      mulberry32(seedFromDate('2026-11-18')),
+      missed,
+    );
+    expect(a).toEqual(b);
+  });
+
+  it('uses an empty missed set by default (the daily path)', () => {
+    const a = generateQuestions(settings({ questionCount: 10 }), mulberry32(seedFromDate('2026-11-18')));
+    const b = generateQuestions(
+      settings({ questionCount: 10 }),
+      mulberry32(seedFromDate('2026-11-18')),
+      new Set(),
+    );
+    expect(a).toEqual(b);
   });
 });
 

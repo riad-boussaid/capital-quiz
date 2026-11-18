@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Check, ChevronRight, Flame, Heart, Star, X } from 'lucide-react-native';
+import { Check, ChevronRight, Flame, Heart, Star, Target, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +29,7 @@ import {
 import { todayKey } from '@/lib/daily';
 import { useUiColors } from '@/lib/theme';
 import { useDaily } from '@/store/DailyContext';
+import { useMissed } from '@/store/MissedContext';
 import { scoreKey, useScores } from '@/store/ScoresContext';
 
 const QUESTION_COUNT = 10;
@@ -68,11 +69,15 @@ export default function QuizScreen() {
   const router = useRouter();
   const { bestFor, recordResult } = useScores();
   const { recordDailyResult } = useDaily();
+  const { missed, recordMiss, recordHit } = useMissed();
   const colors = useUiColors();
 
   const isDaily = params.daily === '1';
   const dailyDate = isDaily ? (params.date ?? todayKey()) : '';
   const isEndless = params.endless === '1';
+  // Snapshot taken once per run: regenerating questions mid-run because the
+  // missed set changed would swap out the quiz under the player.
+  const [missedAtStart] = useState(() => new Set(Object.keys(missed)));
 
   const settings = useMemo(
     () => ({
@@ -85,15 +90,16 @@ export default function QuizScreen() {
     [params.mode, params.difficulty, params.timed, params.time, params.count, isDaily, dailyDate],
   );
 
-  // Daily runs use a date-seeded PRNG so everyone gets the same quiz; regular
-  // runs keep the default Math.random path.
+  // Daily runs use a date-seeded PRNG and an empty missed set so everyone gets
+  // the same quiz; regular runs keep Math.random but prioritize weak spots.
   const questions = useMemo(
     () =>
       generateQuestions(
         settings,
         isDaily ? mulberry32(seedFromDate(dailyDate)) : Math.random,
+        isDaily ? new Set() : missedAtStart,
       ),
-    [settings, isDaily, dailyDate],
+    [settings, isDaily, dailyDate, missedAtStart],
   );
 
   const [index, setIndex] = useState(0);
@@ -146,13 +152,15 @@ export default function QuizScreen() {
         setStreak(nextStreak);
         setBestStreak((b) => Math.max(b, nextStreak));
         setAward(earned);
+        recordHit(question.country.name);
       } else {
         setStreak(0);
         setAward(null);
         if (isEndless) setLives((l) => l - 1);
+        recordMiss(question.country.name);
       }
     },
-    [revealed, index, quizQuestions, streak, isEndless],
+    [revealed, index, quizQuestions, streak, isEndless, recordHit, recordMiss],
   );
 
   useEffect(() => {
@@ -359,11 +367,23 @@ export default function QuizScreen() {
         )}
 
         <View className="my-7 items-center gap-1.5">
-          {isDaily && (
-            <View className="mb-1.5 rounded-full bg-primarySoft px-3 py-1">
-              <Text className="text-[11px] font-bold uppercase tracking-widest text-primary">
-                Daily Challenge
-              </Text>
+          {(isDaily || question.country.name in missed) && (
+            <View className="mb-1.5 flex-row items-center gap-1.5">
+              {isDaily && (
+                <View className="rounded-full bg-primarySoft px-3 py-1">
+                  <Text className="text-[11px] font-bold uppercase tracking-widest text-primary">
+                    Daily Challenge
+                  </Text>
+                </View>
+              )}
+              {question.country.name in missed && (
+                <View className="flex-row items-center gap-1 rounded-full bg-amberSoft px-3 py-1">
+                  <Target size={11} color={colors.amber} strokeWidth={2.5} />
+                  <Text className="text-[11px] font-bold uppercase tracking-widest text-amber">
+                    Weak spot
+                  </Text>
+                </View>
+              )}
             </View>
           )}
           <Flag emoji={question.country.flag} size={104} />

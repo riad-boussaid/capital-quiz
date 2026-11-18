@@ -2,7 +2,7 @@
   "expo": {
     "name": "Capital Quiz",
     "slug": "capital-quiz",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "capitalquiz",
@@ -15,7 +15,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.capitalquiz"
+      "package": "com.anonymous.capitalquiz",
+      "versionCode": 4
     },
     "web": {
       "output": "static",
